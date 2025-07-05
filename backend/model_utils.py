@@ -16,6 +16,8 @@ def predict_role_from_skills(skills: list[str]) -> str:
     if not model or not mlb:
         return "Unknown (Model not loaded)"
     
-    skill_vector = mlb.transform([skills])
+    # Join list into space-separated string
+    skill_vector = mlb.transform([" ".join(skills)])
     prediction = model.predict(skill_vector)
     return prediction[0]
+

@@ -9,6 +9,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from retrain_cron import retrain_model
 import pickle
+from fastapi.middleware.cors import CORSMiddleware
 
 
 # 🔁 Import real model logic
@@ -21,6 +22,16 @@ print("Loaded DATABASE_URL:", DATABASE_URL)
 
 # Create FastAPI app
 app = FastAPI()
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # frontend dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # Create SQLAlchemy engine
 engine = create_engine(DATABASE_URL)
