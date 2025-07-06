@@ -18,16 +18,10 @@ const Home = () => {
           Retrain
         </Link>
         <Link
-          to="/analyze"
+          to="/upload"
           className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
         >
-          Analyze
-        </Link>
-        <Link
-          to="/upload"
-          className="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700"
-        >
-          Upload Resume
+          Upload & Analyze Resume
         </Link>
         <Link
           to="/resumes"

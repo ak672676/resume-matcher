@@ -86,9 +86,8 @@ class AddRoleRequest(BaseModel):
     description: str = ""
 
 
-# Main API route
-@app.post("/analyze")
-def analyze_resume(payload: ResumeInput):
+# Internal function for resume analysis (used by upload endpoints)
+def analyze_resume_internal(payload: ResumeInput):
     skills = extract_skills(payload.resume_text)
     
     # ✅ Use trained model for prediction with confidence
@@ -361,9 +360,8 @@ def extract_skills_from_text(payload: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to extract skills: {str(e)}")
 
-@app.post("/analyze-ai")
-def analyze_resume_ai(payload: ResumeInput):
-    """Enhanced analysis with AI insights"""
+def analyze_resume_ai_internal(payload: ResumeInput):
+    """Enhanced analysis with AI insights (internal function)"""
     try:
         # Extract skills using both traditional and AI methods
         skills = extract_skills(payload.resume_text)
@@ -494,28 +492,12 @@ async def upload_resume(
             raise HTTPException(status_code=400, detail="Could not extract text from PDF")
         
         # Analyze the resume
-        if use_ai:
-            # Use AI-enhanced analysis
-            endpoint = "/analyze-ai"
-            payload = {"user_email": user_email, "resume_text": resume_text}
-        else:
-            # Use regular analysis
-            endpoint = "/analyze"
-            payload = {"user_email": user_email, "resume_text": resume_text}
-        
-        # Call the appropriate analysis endpoint
-        from fastapi.testclient import TestClient
-        client = TestClient(app)
+        payload = ResumeInput(user_email=user_email, resume_text=resume_text)
         
         if use_ai:
-            response = client.post("/analyze-ai", json=payload)
+            result = analyze_resume_ai_internal(payload)
         else:
-            response = client.post("/analyze", json=payload)
-        
-        if response.status_code != 200:
-            raise HTTPException(status_code=500, detail="Failed to analyze resume")
-        
-        result = response.json()
+            result = analyze_resume_internal(payload)
         
         return {
             "message": "Resume uploaded and analyzed successfully",
@@ -542,14 +524,14 @@ async def upload_resume_text(
             raise HTTPException(status_code=400, detail="Resume text cannot be empty")
         
         # Analyze the resume
+        payload = ResumeInput(user_email=user_email, resume_text=resume_text)
+        
         if use_ai:
-            # Use AI-enhanced analysis
-            payload = ResumeInput(user_email=user_email, resume_text=resume_text)
-            return analyze_resume_ai(payload)
+            result = analyze_resume_ai_internal(payload)
         else:
-            # Use regular analysis
-            payload = ResumeInput(user_email=user_email, resume_text=resume_text)
-            return analyze_resume(payload)
+            result = analyze_resume_internal(payload)
+        
+        return result
         
     except HTTPException:
         raise
