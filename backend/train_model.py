@@ -13,7 +13,19 @@ DATABASE_URL = os.getenv("DATABASE_URL").replace("postgresql+psycopg2", "postgre
 
 def train():
     conn = psycopg2.connect(DATABASE_URL)
-    df = pd.read_sql("SELECT extracted_skills, confirmed_role FROM resumes WHERE confirmed_role IS NOT NULL", conn)
+    
+    # Get training data from resumes with confirmed roles
+    # Also include roles from the roles table as fallback
+    df = pd.read_sql("""
+        SELECT r.extracted_skills, r.confirmed_role 
+        FROM resumes r 
+        WHERE r.confirmed_role IS NOT NULL
+        UNION ALL
+        SELECT ARRAY['Sample Skill'] as extracted_skills, ro.name as confirmed_role
+        FROM roles ro
+        WHERE ro.is_active = TRUE
+        AND ro.name NOT IN (SELECT DISTINCT confirmed_role FROM resumes WHERE confirmed_role IS NOT NULL)
+    """, conn)
 
     if df.empty:
         print("No training data found.")

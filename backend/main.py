@@ -80,6 +80,10 @@ class ConfirmRoleRequest(BaseModel):
     resume_id: str
     confirmed_role: str
 
+class AddRoleRequest(BaseModel):
+    name: str
+    description: str = ""
+
 
 # Main API route
 @app.post("/analyze")
@@ -218,6 +222,115 @@ def get_resumes():
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch resumes: {str(e)}")
+
+@app.get("/roles")
+def get_available_roles():
+    """Get all available roles from the roles table"""
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT name, description, is_active 
+                FROM roles 
+                WHERE is_active = TRUE 
+                ORDER BY name
+            """))
+            
+            roles = []
+            for row in result:
+                roles.append({
+                    "name": row[0],
+                    "description": row[1],
+                    "is_active": row[2]
+                })
+            
+            return {
+                "roles": roles,
+                "total_roles": len(roles)
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch roles: {str(e)}")
+
+@app.post("/roles")
+def add_new_role(payload: AddRoleRequest):
+    """Add a new role to the system"""
+    try:
+        role_name = payload.name.strip()
+        if not role_name:
+            raise HTTPException(status_code=400, detail="Role name cannot be empty")
+        
+        with engine.begin() as conn:
+            # Check if role already exists
+            result = conn.execute(text("""
+                SELECT id FROM roles WHERE name = :name
+            """), {"name": role_name})
+            
+            if result.fetchone():
+                return {
+                    "message": f"Role '{role_name}' already exists",
+                    "role_name": role_name,
+                    "status": "exists"
+                }
+            
+            # Add new role
+            conn.execute(text("""
+                INSERT INTO roles (name, description) 
+                VALUES (:name, :description)
+            """), {
+                "name": role_name,
+                "description": payload.description
+            })
+            
+            return {
+                "message": f"Role '{role_name}' added successfully",
+                "role_name": role_name,
+                "status": "added"
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to add role: {str(e)}")
+
+@app.delete("/roles/{role_name}")
+def delete_role(role_name: str):
+    """Soft delete a role (mark as inactive)"""
+    try:
+        with engine.begin() as conn:
+            # Check if role is being used
+            result = conn.execute(text("""
+                SELECT COUNT(*) 
+                FROM resumes 
+                WHERE confirmed_role = :role_name OR predicted_role = :role_name
+            """), {"role_name": role_name})
+            
+            count = result.fetchone()[0]
+            
+            if count > 0:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Cannot delete role '{role_name}' - it's used by {count} resume(s)"
+                )
+            
+            # Soft delete by marking as inactive
+            result = conn.execute(text("""
+                UPDATE roles 
+                SET is_active = FALSE, updated_at = NOW() 
+                WHERE name = :role_name
+            """), {"role_name": role_name})
+            
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail=f"Role '{role_name}' not found")
+            
+            return {
+                "message": f"Role '{role_name}' deleted successfully",
+                "role_name": role_name
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete role: {str(e)}")
 
 @app.get("/skills")
 def get_available_skills():

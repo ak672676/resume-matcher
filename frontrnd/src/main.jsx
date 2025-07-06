@@ -5,6 +5,7 @@ import PredictPage from './pages/PredictPage';
 import RetrainPage from './pages/RetrainPage';
 import AnalyzePage from './pages/AnalyzePage';
 import ResumesPage from './pages/ResumesPage';
+import RolesPage from './pages/RolesPage';
 import './index.css';
 import Home from './components/Home';
 
@@ -17,6 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Route path="/retrain" element={<RetrainPage />} />
       <Route path="/analyze" element={<AnalyzePage />} />
       <Route path="/resumes" element={<ResumesPage />} />
+      <Route path="/roles" element={<RolesPage />} />
     </Routes>
   </BrowserRouter>
 );

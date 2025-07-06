@@ -10,6 +10,53 @@ export default function AnalyzePage() {
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [useAI, setUseAI] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [availableRoles, setAvailableRoles] = useState([]);
+  const [newRole, setNewRole] = useState('');
+  const [showAddRole, setShowAddRole] = useState(false);
+  const [addingRole, setAddingRole] = useState(false);
+
+  // Load available roles on component mount
+  React.useEffect(() => {
+    fetchAvailableRoles();
+  }, []);
+
+  const fetchAvailableRoles = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/roles`);
+      const data = await res.json();
+      setAvailableRoles(data.roles?.map(role => role.name) || []);
+    } catch (err) {
+      console.error('Failed to fetch roles:', err);
+    }
+  };
+
+  const handleAddRole = async () => {
+    if (!newRole.trim()) return;
+    
+    setAddingRole(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/roles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newRole.trim() }),
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        setNewRole('');
+        setShowAddRole(false);
+        fetchAvailableRoles(); // Refresh roles list
+        setConfirmationMessage(`Role "${newRole.trim()}" added successfully!`);
+      } else {
+        setConfirmationMessage(data.detail || 'Failed to add role');
+      }
+    } catch (err) {
+      console.error('Add role error:', err);
+      setConfirmationMessage('Failed to add role');
+    } finally {
+      setAddingRole(false);
+    }
+  };
 
   const handleAnalyze = async () => {
     setResult(null);
@@ -151,12 +198,7 @@ export default function AnalyzePage() {
                 <div className="mt-4">
                   <p className="mb-2"><strong>Confirm Role:</strong></p>
                   <div className="flex gap-2 flex-wrap">
-                    {[
-                      'Full Stack Developer', 'Frontend Developer', 'Backend Developer',
-                      'Data Scientist', 'Data Analyst', 'DevOps Engineer', 'Mobile Developer',
-                      'UI/UX Designer', 'Product Manager', 'QA Engineer', 'Machine Learning Engineer',
-                      'Cloud Engineer', 'Security Engineer', 'Database Administrator', 'Network Engineer'
-                    ].map((role) => (
+                    {availableRoles.map((role) => (
                       <button
                         key={role}
                         onClick={() => handleConfirmRole(result.id, role)}
@@ -170,7 +212,56 @@ export default function AnalyzePage() {
                         {role}
                       </button>
                     ))}
+                    
+                    {/* Add new role button */}
+                    <button
+                      onClick={() => setShowAddRole(true)}
+                      disabled={confirming}
+                      className={`px-3 py-1 rounded text-xs border-2 border-dashed ${
+                        confirming 
+                          ? 'border-gray-300 text-gray-400 cursor-not-allowed' 
+                          : 'border-blue-500 text-blue-600 hover:bg-blue-50'
+                      }`}
+                    >
+                      + Add New Role
+                    </button>
                   </div>
+                  
+                  {/* Add new role form */}
+                  {showAddRole && (
+                    <div className="mt-3 p-3 bg-gray-50 rounded border">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Enter new role name..."
+                          value={newRole}
+                          onChange={(e) => setNewRole(e.target.value)}
+                          className="flex-1 px-2 py-1 text-sm border rounded"
+                          onKeyPress={(e) => e.key === 'Enter' && handleAddRole()}
+                        />
+                        <button
+                          onClick={handleAddRole}
+                          disabled={addingRole || !newRole.trim()}
+                          className={`px-3 py-1 text-xs rounded ${
+                            addingRole || !newRole.trim()
+                              ? 'bg-gray-300 cursor-not-allowed'
+                              : 'bg-green-500 hover:bg-green-600 text-white'
+                          }`}
+                        >
+                          {addingRole ? 'Adding...' : 'Add'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowAddRole(false);
+                            setNewRole('');
+                          }}
+                          className="px-3 py-1 text-xs bg-gray-500 hover:bg-gray-600 text-white rounded"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               
