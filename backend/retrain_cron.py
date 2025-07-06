@@ -21,6 +21,35 @@ def retrain_model():
             return
 
         print(f"📊 Found {len(df)} confirmed resumes for training")
+        
+        # Debug: Check the data format
+        print(f"📈 Sample skills format: {df['extracted_skills'].iloc[0]} (type: {type(df['extracted_skills'].iloc[0])})")
+        
+        # Ensure skills are in the correct format (list of strings)
+        # PostgreSQL arrays might be read as strings or other formats
+        def normalize_skills(skills):
+            if skills is None:
+                return []
+            if isinstance(skills, str):
+                # If it's a string, try to parse it
+                import ast
+                try:
+                    return ast.literal_eval(skills)
+                except:
+                    return [skills]
+            elif isinstance(skills, list):
+                return skills
+            else:
+                return [str(skills)]
+        
+        df['extracted_skills'] = df['extracted_skills'].apply(normalize_skills)
+        
+        # Filter out empty skill lists
+        df = df[df['extracted_skills'].apply(len) > 0]
+        
+        if df.empty:
+            print("⚠️ No records with valid skills found.")
+            return
 
         # Show distribution of confirmed roles
         role_counts = df["confirmed_role"].value_counts()

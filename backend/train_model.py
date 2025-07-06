@@ -19,6 +19,36 @@ def train():
         print("No training data found.")
         return
 
+    # Debug: Check the data format
+    print(f"📊 Found {len(df)} records for training")
+    print(f"📈 Sample skills format: {df['extracted_skills'].iloc[0]} (type: {type(df['extracted_skills'].iloc[0])})")
+    
+    # Ensure skills are in the correct format (list of strings)
+    # PostgreSQL arrays might be read as strings or other formats
+    def normalize_skills(skills):
+        if skills is None:
+            return []
+        if isinstance(skills, str):
+            # If it's a string, try to parse it
+            import ast
+            try:
+                return ast.literal_eval(skills)
+            except:
+                return [skills]
+        elif isinstance(skills, list):
+            return skills
+        else:
+            return [str(skills)]
+    
+    df['extracted_skills'] = df['extracted_skills'].apply(normalize_skills)
+    
+    # Filter out empty skill lists
+    df = df[df['extracted_skills'].apply(len) > 0]
+    
+    if df.empty:
+        print("No records with valid skills found.")
+        return
+
     mlb = MultiLabelBinarizer()
     X = mlb.fit_transform(df["extracted_skills"])
     y = df["confirmed_role"]

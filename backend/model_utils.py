@@ -26,8 +26,8 @@ def predict_role_from_skills(skills: list[str]) -> str:
     if not model or not mlb:
         return "Unknown (Model not loaded)"
     
-    # Join list into space-separated string
-    skill_vector = mlb.transform([" ".join(skills)])
+    # MultiLabelBinarizer expects a list of skill lists
+    skill_vector = mlb.transform([skills])
     prediction = model.predict(skill_vector)
     return prediction[0]
 
@@ -53,8 +53,8 @@ def predict_role_with_confidence(skills: list[str]) -> tuple[str, float]:
             return "Unknown (Model not loaded)", 0.0
     
     try:
-        # Join list into space-separated string
-        skill_vector = mlb.transform([" ".join(skills)])
+        # MultiLabelBinarizer expects a list of skill lists
+        skill_vector = mlb.transform([skills])
         
         # Get prediction
         prediction = model.predict(skill_vector)
