@@ -6,6 +6,7 @@ import RetrainPage from './pages/RetrainPage';
 import AnalyzePage from './pages/AnalyzePage';
 import ResumesPage from './pages/ResumesPage';
 import RolesPage from './pages/RolesPage';
+import UploadPage from './pages/UploadPage';
 import './index.css';
 import Home from './components/Home';
 
@@ -17,6 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Route path="/predict" element={<PredictPage />} />
       <Route path="/retrain" element={<RetrainPage />} />
       <Route path="/analyze" element={<AnalyzePage />} />
+      <Route path="/upload" element={<UploadPage />} />
       <Route path="/resumes" element={<ResumesPage />} />
       <Route path="/roles" element={<RolesPage />} />
     </Routes>

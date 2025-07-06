@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from model_utils import predict_role_from_skills, predict_role_with_confidence
 from skill_extractor import skill_extractor
 from gemini_service import gemini_service
+from pdf_processor import pdf_processor
 
 # Load env variables
 load_dotenv()
@@ -466,3 +467,91 @@ def generate_resume_feedback_ai(payload: dict):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Feedback generation failed: {str(e)}")
+
+@app.post("/upload-resume")
+async def upload_resume(
+    file: UploadFile = File(...),
+    user_email: str = Form(...),
+    use_ai: bool = Form(False)
+):
+    """Upload and analyze a PDF resume"""
+    try:
+        # Validate file type
+        if not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+        
+        # Read file content
+        file_content = await file.read()
+        
+        # Validate PDF
+        is_valid, error_message = pdf_processor.validate_pdf(file_content)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error_message)
+        
+        # Extract text from PDF
+        resume_text = pdf_processor.extract_text_from_pdf(file_content)
+        if not resume_text:
+            raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+        
+        # Analyze the resume
+        if use_ai:
+            # Use AI-enhanced analysis
+            endpoint = "/analyze-ai"
+            payload = {"user_email": user_email, "resume_text": resume_text}
+        else:
+            # Use regular analysis
+            endpoint = "/analyze"
+            payload = {"user_email": user_email, "resume_text": resume_text}
+        
+        # Call the appropriate analysis endpoint
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        
+        if use_ai:
+            response = client.post("/analyze-ai", json=payload)
+        else:
+            response = client.post("/analyze", json=payload)
+        
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail="Failed to analyze resume")
+        
+        result = response.json()
+        
+        return {
+            "message": "Resume uploaded and analyzed successfully",
+            "filename": file.filename,
+            "file_size": len(file_content),
+            "extracted_text_length": len(resume_text),
+            "analysis_result": result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process resume: {str(e)}")
+
+@app.post("/upload-resume-text")
+async def upload_resume_text(
+    user_email: str = Form(...),
+    resume_text: str = Form(...),
+    use_ai: bool = Form(False)
+):
+    """Upload resume as text and analyze it"""
+    try:
+        if not resume_text.strip():
+            raise HTTPException(status_code=400, detail="Resume text cannot be empty")
+        
+        # Analyze the resume
+        if use_ai:
+            # Use AI-enhanced analysis
+            payload = ResumeInput(user_email=user_email, resume_text=resume_text)
+            return analyze_resume_ai(payload)
+        else:
+            # Use regular analysis
+            payload = ResumeInput(user_email=user_email, resume_text=resume_text)
+            return analyze_resume(payload)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to analyze resume: {str(e)}")

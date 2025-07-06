@@ -24,6 +24,12 @@ const Home = () => {
           Analyze
         </Link>
         <Link
+          to="/upload"
+          className="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700"
+        >
+          Upload Resume
+        </Link>
+        <Link
           to="/resumes"
           className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700"
         >

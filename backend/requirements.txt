@@ -8,3 +8,5 @@ python-dotenv
 scikit-learn
 pandas
 google-generativeai
+python-multipart
+PyPDF2
