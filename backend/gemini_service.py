@@ -26,12 +26,27 @@ class GeminiService:
             response = self.model.generate_content(prompt)
             skills_text = response.text.strip()
             
+            # Clean up the response - remove markdown code blocks if present
+            if "```json" in skills_text:
+                skills_text = skills_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in skills_text:
+                skills_text = skills_text.split("```")[1].strip()
+            
             try:
                 skills = json.loads(skills_text)
                 return skills if isinstance(skills, list) else []
             except json.JSONDecodeError:
-                # Fallback: split by comma if JSON parsing fails
-                return [skill.strip() for skill in skills_text.split(',') if skill.strip()]
+                # Fallback: try to extract array from the text
+                import re
+                array_match = re.search(r'\[(.*?)\]', skills_text)
+                if array_match:
+                    array_content = array_match.group(1)
+                    # Split by comma and clean up quotes
+                    skills = [skill.strip().strip('"\'') for skill in array_content.split(',')]
+                    return [skill for skill in skills if skill]
+                else:
+                    # Final fallback: split by comma
+                    return [skill.strip().strip('"\'') for skill in skills_text.split(',') if skill.strip()]
                 
         except Exception as e:
             error_msg = str(e)
@@ -56,6 +71,12 @@ class GeminiService:
             
             response = self.model.generate_content(prompt)
             result_text = response.text.strip()
+            
+            # Clean up the response - remove markdown code blocks if present
+            if "```json" in result_text:
+                result_text = result_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in result_text:
+                result_text = result_text.split("```")[1].strip()
             
             try:
                 return json.loads(result_text)
@@ -107,11 +128,26 @@ class GeminiService:
             response = self.model.generate_content(prompt)
             result_text = response.text.strip()
             
+            # Clean up the response - remove markdown code blocks if present
+            if "```json" in result_text:
+                result_text = result_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in result_text:
+                result_text = result_text.split("```")[1].strip()
+            
             try:
                 additional_skills = json.loads(result_text)
                 return additional_skills if isinstance(additional_skills, list) else []
             except json.JSONDecodeError:
-                return []
+                # Fallback: try to extract array from the text
+                import re
+                array_match = re.search(r'\[(.*?)\]', result_text)
+                if array_match:
+                    array_content = array_match.group(1)
+                    # Split by comma and clean up quotes
+                    skills = [skill.strip().strip('"\'') for skill in array_content.split(',')]
+                    return [skill for skill in skills if skill]
+                else:
+                    return []
                 
         except Exception as e:
             error_msg = str(e)
