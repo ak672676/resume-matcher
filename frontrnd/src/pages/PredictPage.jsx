@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 export default function PredictPage() {
   const [skills, setSkills] = useState('');
   const [prediction, setPrediction] = useState('');
@@ -9,7 +10,7 @@ export default function PredictPage() {
     setLoading(true);
     setPrediction('');
     try {
-      const res = await fetch('http://127.0.0.1:8000/predict', {
+      const res = await fetch(`${API_BASE_URL}/predict`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skills: skills.split(',').map(s => s.trim()) }),

@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 export default function RetrainPage() {
   const [message, setMessage] = useState('');
 
   const handleRetrain = async () => {
     setMessage('');
     try {
-      const res = await fetch('http://127.0.0.1:8000/retrain', { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/retrain`, { method: 'POST' });
       const data = await res.json();
       setMessage(data.message);
     } catch (err) {

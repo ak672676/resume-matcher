@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 export default function AnalyzePage() {
   const [email, setEmail] = useState('');
   const [resumeText, setResumeText] = useState('');
@@ -8,7 +10,7 @@ export default function AnalyzePage() {
   const handleAnalyze = async () => {
     setResult(null);
     try {
-      const res = await fetch('http://127.0.0.1:8000/analyze', {
+      const res = await fetch(`${API_BASE_URL}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_email: email, resume_text: resumeText }),
