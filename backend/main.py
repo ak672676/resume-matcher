@@ -79,6 +79,9 @@ def analyze_resume(payload: ResumeInput):
     role, confidence_score = predict_role_with_confidence(skills)
     resume_id = str(uuid.uuid4())
 
+    # Convert numpy float to Python float for database storage
+    match_score = float(confidence_score)
+
     try:
         with engine.begin() as conn:
             conn.execute(text("""
@@ -90,7 +93,7 @@ def analyze_resume(payload: ResumeInput):
                 "raw": payload.resume_text,
                 "skills": skills,
                 "role": role,
-                "match_score": confidence_score,
+                "match_score": match_score,
                 "created_at": datetime.utcnow()
             })
     except OperationalError as e:
@@ -100,7 +103,7 @@ def analyze_resume(payload: ResumeInput):
         "id": resume_id,
         "skills": skills,
         "predicted_role": role,
-        "match_score": confidence_score
+        "match_score": match_score
     }
 
 @app.get("/health")
@@ -133,9 +136,12 @@ def predict_skills(payload: PredictRequest):
         # Use the same prediction function as /analyze endpoint
         role, confidence_score = predict_role_with_confidence(payload.skills)
         
+        # Convert numpy float to Python float
+        match_score = float(confidence_score)
+        
         return {
             "predicted_role": role,
-            "match_score": confidence_score
+            "match_score": match_score
         }
 
     except FileNotFoundError:

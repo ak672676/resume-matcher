@@ -63,7 +63,7 @@ def predict_role_with_confidence(skills: list[str]) -> tuple[str, float]:
         # Get probability for the predicted class
         probabilities = model.predict_proba(skill_vector)
         predicted_class_index = list(model.classes_).index(predicted_role)
-        confidence_score = probabilities[0][predicted_class_index]
+        confidence_score = float(probabilities[0][predicted_class_index])  # Convert to Python float
         
         return predicted_role, confidence_score
     except Exception as e:
