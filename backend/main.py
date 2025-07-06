@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # 🔁 Import real model logic
 from model_utils import predict_role_from_skills, predict_role_with_confidence
+from skill_extractor import skill_extractor
 
 # Load env variables
 load_dotenv()
@@ -49,10 +50,12 @@ def test_database_connection():
         raise RuntimeError("Failed to connect to the database.") from e
 # ---------------------------------------------------
 
-# Dummy skill extraction logic
+# Intelligent skill extraction using the SkillExtractor class
 def extract_skills(text: str) -> List[str]:
-    keywords = ["python", "react", "node", "sql", "docker", "aws", "pandas", "matplotlib", "express", "mongodb"]
-    return [word for word in keywords if word.lower() in text.lower()]
+    """
+    Extract skills from resume text using intelligent pattern matching
+    """
+    return skill_extractor.extract_skills(text)
 
 # Input schema
 class ResumeInput(BaseModel):
@@ -113,7 +116,12 @@ def health_check():
 def retrain():
     try:
         retrain_model()
-        return {"status": "success", "message": "Model retrained successfully"}
+        # Reload the model after retraining
+        from model_utils import reload_model
+        if reload_model():
+            return {"status": "success", "message": "Model retrained and reloaded successfully"}
+        else:
+            return {"status": "warning", "message": "Model retrained but failed to reload"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
     
@@ -122,16 +130,13 @@ def retrain():
 @app.post("/predict")
 def predict_skills(payload: PredictRequest):
     try:
-        # Load trained model
-        with open("model.pkl", "rb") as f:
-            model, vectorizer = pickle.load(f)
-
-        # Convert skills to space-separated string
-        skill_str = " ".join(payload.skills)
-        X = vectorizer.transform([skill_str])
-        predicted_role = model.predict(X)[0]
-
-        return {"predicted_role": predicted_role}
+        # Use the same prediction function as /analyze endpoint
+        role, confidence_score = predict_role_with_confidence(payload.skills)
+        
+        return {
+            "predicted_role": role,
+            "match_score": confidence_score
+        }
 
     except FileNotFoundError:
         raise HTTPException(status_code=500, detail="Model not found. Please retrain first.")
@@ -196,3 +201,34 @@ def get_resumes():
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch resumes: {str(e)}")
+
+@app.get("/skills")
+def get_available_skills():
+    """
+    Get all available skills organized by category
+    """
+    try:
+        return {
+            "skills": skill_extractor.get_skill_categories(),
+            "total_skills": len(skill_extractor.all_skills)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch skills: {str(e)}")
+
+@app.post("/extract-skills")
+def extract_skills_from_text(payload: dict):
+    """
+    Extract skills from text without saving to database
+    """
+    try:
+        text = payload.get("text", "")
+        if not text:
+            raise HTTPException(status_code=400, detail="Text is required")
+        
+        skills = skill_extractor.extract_skills(text)
+        return {
+            "extracted_skills": skills,
+            "skill_count": len(skills)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to extract skills: {str(e)}")

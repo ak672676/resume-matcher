@@ -1,49 +1,64 @@
 import os
-import pickle
+import joblib
 import psycopg2
+import pandas as pd
 from dotenv import load_dotenv
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.naive_bayes import MultinomialNB
+from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.linear_model import LogisticRegression
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL").replace("postgresql+psycopg2", "postgresql")
 
 def retrain_model():
     print("🔁 Starting retraining...")
-    conn = psycopg2.connect(DATABASE_URL)
-    cursor = conn.cursor()
+    
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        df = pd.read_sql("SELECT extracted_skills, confirmed_role FROM resumes WHERE confirmed_role IS NOT NULL", conn)
 
-    # Get rows where confirmed_role is available (i.e., labeled)
-    cursor.execute("""
-        SELECT extracted_skills, confirmed_role
-        FROM resumes
-        WHERE confirmed_role IS NOT NULL
-    """)
-    rows = cursor.fetchall()
+        if df.empty:
+            print("⚠️ No confirmed resume records to retrain on.")
+            return
 
-    if not rows:
-        print("⚠️ No confirmed resume records to retrain on.")
-        return
+        print(f"📊 Found {len(df)} confirmed resumes for training")
 
-    # Preprocessing
-    skill_texts = [" ".join(skills) for skills, _ in rows]
-    roles = [label for _, label in rows]
+        # Show distribution of confirmed roles
+        role_counts = df["confirmed_role"].value_counts()
+        print("📈 Role distribution:")
+        for role, count in role_counts.items():
+            print(f"   {role}: {count}")
 
-    vectorizer = CountVectorizer()
-    X = vectorizer.fit_transform(skill_texts)
-    y = roles
+        # Use the same preprocessing as train_model.py
+        mlb = MultiLabelBinarizer()
+        X = mlb.fit_transform(df["extracted_skills"])
+        y = df["confirmed_role"]
 
-    model = MultinomialNB()
-    model.fit(X, y)
+        # Check if we have enough data for each role (at least 2 samples per role)
+        min_samples_per_role = 2
+        role_counts = df["confirmed_role"].value_counts()
+        insufficient_roles = role_counts[role_counts < min_samples_per_role]
+        
+        if not insufficient_roles.empty:
+            print(f"⚠️ Warning: Some roles have fewer than {min_samples_per_role} samples:")
+            for role, count in insufficient_roles.items():
+                print(f"   {role}: {count} samples")
+            print("   Consider confirming more roles for better model performance.")
 
-    # Save model + vectorizer
-    with open("model.pkl", "wb") as f:
-        pickle.dump((model, vectorizer), f)
+        # Use LogisticRegression for consistent probability estimates
+        clf = LogisticRegression(random_state=42, max_iter=1000)
+        clf.fit(X, y)
 
-    print(f"✅ Retrained on {len(rows)} samples.")
+        # Save model + binarizer (same format as train_model.py)
+        joblib.dump((clf, mlb), "model.pkl")
 
-    cursor.close()
-    conn.close()
+        print(f"✅ Retrained on {len(df)} samples with {len(clf.classes_)} classes")
+        print(f"📈 Classes: {list(clf.classes_)}")
+
+        conn.close()
+        
+    except Exception as e:
+        print(f"❌ Retraining failed: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     retrain_model()
