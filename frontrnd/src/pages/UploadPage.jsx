@@ -435,9 +435,20 @@ export default function UploadPage() {
                     {/* AI Insights Section */}
                     {analysisData.ai_enhanced && (
                       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200 mb-4">
-                        <h4 className="font-semibold text-blue-800 mb-3 flex items-center">
-                          🤖 AI-Powered Insights
-                        </h4>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-blue-800 flex items-center">
+                            🤖 AI-Powered Insights
+                          </h4>
+                          {analysisData.ai_provider && (
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              analysisData.ai_provider === 'google' 
+                                ? 'bg-blue-100 text-blue-700' 
+                                : 'bg-purple-100 text-purple-700'
+                            }`}>
+                              {analysisData.ai_provider === 'google' ? 'Google Gemini' : 'Hugging Face'}
+                            </span>
+                          )}
+                        </div>
                         
                         {/* Alternative Role Suggestions */}
                         {analysisData.ai_suggestions && Object.keys(analysisData.ai_suggestions).length > 0 && (

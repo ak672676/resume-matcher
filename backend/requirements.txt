@@ -10,3 +10,4 @@ pandas
 google-generativeai
 python-multipart
 PyPDF2
+requests

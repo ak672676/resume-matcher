@@ -52,9 +52,10 @@ class GeminiService:
             error_msg = str(e)
             if "quota" in error_msg.lower() or "429" in error_msg:
                 print("Google Gemini quota exceeded - falling back to traditional methods")
+                raise Exception("Google Gemini quota exceeded")  # Re-raise to trigger fallback
             else:
                 print(f"Google Gemini API error: {e}")
-            return []
+                raise  # Re-raise other errors
     
     def suggest_role_ai(self, skills: List[str], resume_text: str) -> Dict[str, float]:
         """Suggest roles with confidence scores using AI"""
@@ -87,9 +88,10 @@ class GeminiService:
             error_msg = str(e)
             if "quota" in error_msg.lower() or "429" in error_msg:
                 print("Google Gemini quota exceeded - falling back to traditional methods")
+                raise Exception("Google Gemini quota exceeded")  # Re-raise to trigger fallback
             else:
                 print(f"Google Gemini API error: {e}")
-            return {"Unknown": 0.5}
+                raise  # Re-raise other errors
     
     def generate_resume_feedback(self, resume_text: str, predicted_role: str) -> str:
         """Generate AI-powered resume feedback"""
@@ -108,9 +110,10 @@ class GeminiService:
             error_msg = str(e)
             if "quota" in error_msg.lower() or "429" in error_msg:
                 print("Google Gemini quota exceeded - falling back to traditional methods")
+                raise Exception("Google Gemini quota exceeded")  # Re-raise to trigger fallback
             else:
                 print(f"Google Gemini API error: {e}")
-            return "Unable to generate feedback at this time."
+                raise  # Re-raise other errors
     
     def enhance_skill_extraction(self, resume_text: str, existing_skills: List[str]) -> List[str]:
         """Enhance skill extraction with AI insights"""
@@ -153,9 +156,10 @@ class GeminiService:
             error_msg = str(e)
             if "quota" in error_msg.lower() or "429" in error_msg:
                 print("Google Gemini quota exceeded - falling back to traditional methods")
+                raise Exception("Google Gemini quota exceeded")  # Re-raise to trigger fallback
             else:
                 print(f"Google Gemini API error: {e}")
-            return []
+                raise  # Re-raise other errors
 
 # Global instance
 gemini_service = GeminiService() 

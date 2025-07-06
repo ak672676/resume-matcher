@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from model_utils import predict_role_from_skills, predict_role_with_confidence
 from skill_extractor import skill_extractor
 from gemini_service import gemini_service
+from huggingface_service import huggingface_service
 from pdf_processor import pdf_processor
 
 # Load env variables
@@ -56,16 +57,34 @@ def extract_skills(text: str) -> List[str]:
     # Use traditional skill extraction
     traditional_skills = skill_extractor.extract_skills(text)
     
-    # Enhance with AI if Google Gemini is available
+    # Try to enhance with AI - Google first, then Hugging Face
+    ai_skills = []
+    ai_provider = "none"
+    
+    # Try Google Gemini first
     if os.getenv("GOOGLE_API_KEY"):
         try:
             ai_skills = gemini_service.extract_skills_ai(text)
-            # Combine and deduplicate skills
-            all_skills = list(set(traditional_skills + ai_skills))
-            return all_skills[:15]  # Return top 15
+            ai_provider = "google"
+            print(f"✅ Google Gemini skill extraction successful")
         except Exception as e:
-            print(f"AI skill extraction failed: {e}")
-            return traditional_skills
+            print(f"❌ Google Gemini skill extraction failed: {e}")
+            # Fallback to Hugging Face
+            if os.getenv("HUGGINGFACE_API_TOKEN"):
+                try:
+                    ai_skills = huggingface_service.enhance_skill_extraction(text, traditional_skills)
+                    ai_provider = "huggingface"
+                    print(f"✅ Hugging Face skill extraction successful")
+                except Exception as hf_e:
+                    print(f"❌ Hugging Face skill extraction failed: {hf_e}")
+            else:
+                print(f"⚠️ No Hugging Face token configured for fallback")
+    
+    # Combine and deduplicate skills
+    if ai_skills:
+        all_skills = list(set(traditional_skills + ai_skills))
+        print(f"🎯 Combined skills from {ai_provider}: {len(all_skills)} total skills")
+        return all_skills[:15]  # Return top 15
     
     return traditional_skills
 
@@ -366,25 +385,51 @@ def analyze_resume_ai_internal(payload: ResumeInput):
         # Extract skills using both traditional and AI methods
         skills = extract_skills(payload.resume_text)
         
-        # Get AI role suggestions
+        # Get AI role suggestions - try Google first, then Hugging Face
         ai_suggestions = {}
+        ai_provider = "none"
+        
         if os.getenv("GOOGLE_API_KEY"):
             try:
                 ai_suggestions = gemini_service.suggest_role_ai(skills, payload.resume_text)
+                ai_provider = "google"
+                print(f"✅ Google Gemini role suggestions successful")
             except Exception as e:
-                print(f"AI role suggestion failed: {e}")
+                print(f"❌ Google Gemini role suggestions failed: {e}")
+                # Fallback to Hugging Face
+                if os.getenv("HUGGINGFACE_API_TOKEN"):
+                    try:
+                        ai_suggestions = huggingface_service.suggest_role_ai(skills, payload.resume_text)
+                        ai_provider = "huggingface"
+                        print(f"✅ Hugging Face role suggestions successful")
+                    except Exception as hf_e:
+                        print(f"❌ Hugging Face role suggestions failed: {hf_e}")
+                else:
+                    print(f"⚠️ No Hugging Face token configured for role suggestions fallback")
         
         # Use ML model for primary prediction
         role, confidence_score = predict_role_with_confidence(skills)
         match_score = float(confidence_score)
         
-        # Generate AI feedback
+        # Generate AI feedback - try Google first, then Hugging Face
         ai_feedback = ""
         if os.getenv("GOOGLE_API_KEY"):
             try:
                 ai_feedback = gemini_service.generate_resume_feedback(payload.resume_text, role)
+                ai_provider = "google"
+                print(f"✅ Google Gemini feedback generation successful")
             except Exception as e:
-                print(f"AI feedback generation failed: {e}")
+                print(f"❌ Google Gemini feedback generation failed: {e}")
+                # Fallback to Hugging Face
+                if os.getenv("HUGGINGFACE_API_TOKEN"):
+                    try:
+                        ai_feedback = huggingface_service.generate_resume_feedback(payload.resume_text, role)
+                        ai_provider = "huggingface"
+                        print(f"✅ Hugging Face feedback generation successful")
+                    except Exception as hf_e:
+                        print(f"❌ Hugging Face feedback generation failed: {hf_e}")
+                else:
+                    print(f"⚠️ No Hugging Face token configured for feedback fallback")
         
         resume_id = str(uuid.uuid4())
         
@@ -413,7 +458,8 @@ def analyze_resume_ai_internal(payload: ResumeInput):
             "match_score": match_score,
             "ai_suggestions": ai_suggestions,
             "ai_feedback": ai_feedback,
-            "ai_enhanced": bool(os.getenv("GOOGLE_API_KEY"))
+            "ai_enhanced": ai_provider != "none",
+            "ai_provider": ai_provider
         }
         
     except Exception as e:
@@ -429,15 +475,32 @@ def enhance_skills_ai(payload: dict):
         if not text:
             raise HTTPException(status_code=400, detail="Text is required")
         
-        if not os.getenv("GOOGLE_API_KEY"):
-            raise HTTPException(status_code=400, detail="Google API key not configured")
+        additional_skills = []
+        ai_provider = "none"
         
-        additional_skills = gemini_service.enhance_skill_extraction(text, existing_skills)
+        # Try Google first, then Hugging Face
+        if os.getenv("GOOGLE_API_KEY"):
+            try:
+                additional_skills = gemini_service.enhance_skill_extraction(text, existing_skills)
+                ai_provider = "google"
+            except Exception as e:
+                print(f"Google skill enhancement failed: {e}")
+                # Fallback to Hugging Face
+                if os.getenv("HUGGINGFACE_API_TOKEN"):
+                    try:
+                        additional_skills = huggingface_service.enhance_skill_extraction(text, existing_skills)
+                        ai_provider = "huggingface"
+                    except Exception as hf_e:
+                        print(f"Hugging Face skill enhancement failed: {hf_e}")
+        
+        if ai_provider == "none":
+            raise HTTPException(status_code=400, detail="No AI provider configured (Google API or Hugging Face)")
         
         return {
             "original_skills": existing_skills,
             "additional_skills": additional_skills,
-            "enhanced_skills": list(set(existing_skills + additional_skills))
+            "enhanced_skills": list(set(existing_skills + additional_skills)),
+            "ai_provider": ai_provider
         }
         
     except Exception as e:
@@ -453,14 +516,31 @@ def generate_resume_feedback_ai(payload: dict):
         if not text:
             raise HTTPException(status_code=400, detail="Text is required")
         
-        if not os.getenv("GOOGLE_API_KEY"):
-            raise HTTPException(status_code=400, detail="Google API key not configured")
+        feedback = ""
+        ai_provider = "none"
         
-        feedback = gemini_service.generate_resume_feedback(text, target_role)
+        # Try Google first, then Hugging Face
+        if os.getenv("GOOGLE_API_KEY"):
+            try:
+                feedback = gemini_service.generate_resume_feedback(text, target_role)
+                ai_provider = "google"
+            except Exception as e:
+                print(f"Google feedback generation failed: {e}")
+                # Fallback to Hugging Face
+                if os.getenv("HUGGINGFACE_API_TOKEN"):
+                    try:
+                        feedback = huggingface_service.generate_resume_feedback(text, target_role)
+                        ai_provider = "huggingface"
+                    except Exception as hf_e:
+                        print(f"Hugging Face feedback generation failed: {hf_e}")
+        
+        if ai_provider == "none":
+            raise HTTPException(status_code=400, detail="No AI provider configured (Google API or Hugging Face)")
         
         return {
             "feedback": feedback,
-            "target_role": target_role
+            "target_role": target_role,
+            "ai_provider": ai_provider
         }
         
     except Exception as e:
