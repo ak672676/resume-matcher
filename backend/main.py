@@ -62,6 +62,10 @@ class ResumeInput(BaseModel):
 class PredictRequest(BaseModel):
     skills: List[str]
 
+class ConfirmRoleRequest(BaseModel):
+    resume_id: str
+    confirmed_role: str
+
 
 # Main API route
 @app.post("/analyze")
@@ -131,3 +135,61 @@ def predict_skills(payload: PredictRequest):
         raise HTTPException(status_code=500, detail="Model not found. Please retrain first.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/confirm-role")
+def confirm_role(payload: ConfirmRoleRequest):
+    try:
+        with engine.begin() as conn:
+            # Update the confirmed_role for the given resume_id
+            result = conn.execute(text("""
+                UPDATE resumes 
+                SET confirmed_role = :confirmed_role 
+                WHERE id = :resume_id
+                RETURNING id, predicted_role, confirmed_role
+            """), {
+                "resume_id": payload.resume_id,
+                "confirmed_role": payload.confirmed_role
+            })
+            
+            updated_record = result.fetchone()
+            
+            if not updated_record:
+                raise HTTPException(status_code=404, detail="Resume not found")
+            
+            return {
+                "id": updated_record[0],
+                "predicted_role": updated_record[1],
+                "confirmed_role": updated_record[2],
+                "message": "Role confirmed successfully"
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to confirm role: {str(e)}")
+
+@app.get("/resumes")
+def get_resumes():
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT id, user_email, predicted_role, confirmed_role, created_at 
+                FROM resumes 
+                ORDER BY created_at DESC 
+                LIMIT 100
+            """))
+            
+            resumes = []
+            for row in result:
+                resumes.append({
+                    "id": row[0],
+                    "user_email": row[1],
+                    "predicted_role": row[2],
+                    "confirmed_role": row[3],
+                    "created_at": row[4].isoformat() if row[4] else None
+                })
+            
+            return {"resumes": resumes}
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch resumes: {str(e)}")
