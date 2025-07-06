@@ -5,3 +5,4 @@ psycopg2-binary
 pydantic
 joblib
 python-dotenv
+scikit-learn
