@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 
 # 🔁 Import real model logic
-from model_utils import predict_role_from_skills
+from model_utils import predict_role_from_skills, predict_role_with_confidence
 
 # Load env variables
 load_dotenv()
@@ -72,21 +72,22 @@ class ConfirmRoleRequest(BaseModel):
 def analyze_resume(payload: ResumeInput):
     skills = extract_skills(payload.resume_text)
     
-    # ✅ Use trained model for prediction
-    role = predict_role_from_skills(skills)
+    # ✅ Use trained model for prediction with confidence
+    role, confidence_score = predict_role_with_confidence(skills)
     resume_id = str(uuid.uuid4())
 
     try:
         with engine.begin() as conn:
             conn.execute(text("""
-                INSERT INTO resumes (id, user_email, raw_text, extracted_skills, predicted_role, created_at)
-                VALUES (:id, :email, :raw, :skills, :role, :created_at)
+                INSERT INTO resumes (id, user_email, raw_text, extracted_skills, predicted_role, match_score, created_at)
+                VALUES (:id, :email, :raw, :skills, :role, :match_score, :created_at)
             """), {
                 "id": resume_id,
                 "email": payload.user_email,
                 "raw": payload.resume_text,
                 "skills": skills,
                 "role": role,
+                "match_score": confidence_score,
                 "created_at": datetime.utcnow()
             })
     except OperationalError as e:
@@ -95,7 +96,8 @@ def analyze_resume(payload: ResumeInput):
     return {
         "id": resume_id,
         "skills": skills,
-        "predicted_role": role
+        "predicted_role": role,
+        "match_score": confidence_score
     }
 
 @app.get("/health")
@@ -173,7 +175,7 @@ def get_resumes():
     try:
         with engine.connect() as conn:
             result = conn.execute(text("""
-                SELECT id, user_email, predicted_role, confirmed_role, created_at 
+                SELECT id, user_email, predicted_role, confirmed_role, match_score, created_at 
                 FROM resumes 
                 ORDER BY created_at DESC 
                 LIMIT 100
@@ -186,7 +188,8 @@ def get_resumes():
                     "user_email": row[1],
                     "predicted_role": row[2],
                     "confirmed_role": row[3],
-                    "created_at": row[4].isoformat() if row[4] else None
+                    "match_score": row[4],
+                    "created_at": row[5].isoformat() if row[5] else None
                 })
             
             return {"resumes": resumes}

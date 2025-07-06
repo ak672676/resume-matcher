@@ -120,6 +120,15 @@ export default function ResumesPage() {
                   <span className="font-medium text-gray-700">Predicted Role:</span>
                   <span className="ml-2 text-blue-600">{resume.predicted_role || 'None'}</span>
                 </div>
+                <div>
+                  <span className="font-medium text-gray-700">Match Score:</span>
+                  <span className={`ml-2 font-medium ${
+                    resume.match_score >= 0.8 ? 'text-green-600' :
+                    resume.match_score >= 0.6 ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {resume.match_score ? `${(resume.match_score * 100).toFixed(1)}%` : 'N/A'}
+                  </span>
+                </div>
 
                 {resume.confirmed_role ? (
                   <div>

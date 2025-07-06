@@ -87,6 +87,14 @@ export default function AnalyzePage() {
             <>
               <p><strong>Resume ID:</strong> {result.id}</p>
               <p><strong>Predicted Role:</strong> {result.predicted_role}</p>
+              <p><strong>Match Score:</strong> 
+                <span className={`font-medium ${
+                  result.match_score >= 0.8 ? 'text-green-600' :
+                  result.match_score >= 0.6 ? 'text-yellow-600' : 'text-red-600'
+                }`}>
+                  {(result.match_score * 100).toFixed(1)}%
+                </span>
+              </p>
               <p><strong>Extracted Skills:</strong> {result.skills.join(', ')}</p>
               
               {result.confirmed_role ? (

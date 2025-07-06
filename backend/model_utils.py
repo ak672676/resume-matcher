@@ -21,3 +21,25 @@ def predict_role_from_skills(skills: list[str]) -> str:
     prediction = model.predict(skill_vector)
     return prediction[0]
 
+def predict_role_with_confidence(skills: list[str]) -> tuple[str, float]:
+    """
+    Predict role and return confidence score (probability)
+    Returns: (predicted_role, confidence_score)
+    """
+    if not model or not mlb:
+        return "Unknown (Model not loaded)", 0.0
+    
+    # Join list into space-separated string
+    skill_vector = mlb.transform([" ".join(skills)])
+    
+    # Get prediction
+    prediction = model.predict(skill_vector)
+    predicted_role = prediction[0]
+    
+    # Get probability for the predicted class
+    probabilities = model.predict_proba(skill_vector)
+    predicted_class_index = list(model.classes_).index(predicted_role)
+    confidence_score = probabilities[0][predicted_class_index]
+    
+    return predicted_role, confidence_score
+
