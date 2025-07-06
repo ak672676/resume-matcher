@@ -8,12 +8,16 @@ export default function AnalyzePage() {
   const [result, setResult] = useState(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmationMessage, setConfirmationMessage] = useState('');
+  const [useAI, setUseAI] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleAnalyze = async () => {
     setResult(null);
     setConfirmationMessage('');
+    setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/analyze`, {
+      const endpoint = useAI ? '/analyze-ai' : '/analyze';
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_email: email, resume_text: resumeText }),
@@ -23,6 +27,8 @@ export default function AnalyzePage() {
     } catch (err) {
       console.error('Analyze error:', err);
       setResult({ error: 'Failed to analyze resume' });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -67,6 +73,17 @@ export default function AnalyzePage() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
+      <div className="mb-4">
+        <label className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={useAI}
+            onChange={(e) => setUseAI(e.target.checked)}
+            className="rounded"
+          />
+          <span className="text-sm">Use AI Enhancement (Google Gemini)</span>
+        </label>
+      </div>
       <textarea
         placeholder="Paste resume text here..."
         className="border p-2 w-full h-32 mb-4 rounded"
@@ -75,9 +92,14 @@ export default function AnalyzePage() {
       />
       <button
         onClick={handleAnalyze}
-        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+        disabled={isLoading}
+        className={`px-4 py-2 rounded text-white ${
+          isLoading 
+            ? 'bg-gray-400 cursor-not-allowed' 
+            : 'bg-green-600 hover:bg-green-700'
+        }`}
       >
-        Analyze
+        {isLoading ? 'Analyzing...' : 'Analyze'}
       </button>
       {result && (
         <div className="mt-4 text-sm text-gray-700 space-y-2">
@@ -96,6 +118,30 @@ export default function AnalyzePage() {
                 </span>
               </p>
               <p><strong>Extracted Skills:</strong> {result.skills.join(', ')}</p>
+              
+              {result.ai_enhanced && (
+                <div className="mt-4 p-3 bg-blue-50 rounded border-l-4 border-blue-400">
+                  <h4 className="font-semibold text-blue-800 mb-2">🤖 AI Insights</h4>
+                  {result.ai_suggestions && Object.keys(result.ai_suggestions).length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-sm font-medium text-blue-700">Alternative Role Suggestions:</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {Object.entries(result.ai_suggestions).map(([role, confidence]) => (
+                          <span key={role} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                            {role} ({(confidence * 100).toFixed(0)}%)
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {result.ai_feedback && (
+                    <div>
+                      <p className="text-sm font-medium text-blue-700">Resume Feedback:</p>
+                      <p className="text-sm text-blue-600 mt-1">{result.ai_feedback}</p>
+                    </div>
+                  )}
+                </div>
+              )}
               
               {result.confirmed_role ? (
                 <p className="text-green-600">

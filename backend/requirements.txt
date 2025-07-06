@@ -7,3 +7,4 @@ joblib
 python-dotenv
 scikit-learn
 pandas
+google-generativeai

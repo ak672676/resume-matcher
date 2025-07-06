@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # 🔁 Import real model logic
 from model_utils import predict_role_from_skills, predict_role_with_confidence
 from skill_extractor import skill_extractor
+from gemini_service import gemini_service
 
 # Load env variables
 load_dotenv()
@@ -50,12 +51,22 @@ def test_database_connection():
         raise RuntimeError("Failed to connect to the database.") from e
 # ---------------------------------------------------
 
-# Intelligent skill extraction using the SkillExtractor class
 def extract_skills(text: str) -> List[str]:
-    """
-    Extract skills from resume text using intelligent pattern matching
-    """
-    return skill_extractor.extract_skills(text)
+    # Use traditional skill extraction
+    traditional_skills = skill_extractor.extract_skills(text)
+    
+    # Enhance with AI if Google Gemini is available
+    if os.getenv("GOOGLE_API_KEY"):
+        try:
+            ai_skills = gemini_service.extract_skills_ai(text)
+            # Combine and deduplicate skills
+            all_skills = list(set(traditional_skills + ai_skills))
+            return all_skills[:15]  # Return top 15
+        except Exception as e:
+            print(f"AI skill extraction failed: {e}")
+            return traditional_skills
+    
+    return traditional_skills
 
 # Input schema
 class ResumeInput(BaseModel):
@@ -223,9 +234,6 @@ def get_available_skills():
 
 @app.post("/extract-skills")
 def extract_skills_from_text(payload: dict):
-    """
-    Extract skills from text without saving to database
-    """
     try:
         text = payload.get("text", "")
         if not text:
@@ -238,3 +246,110 @@ def extract_skills_from_text(payload: dict):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to extract skills: {str(e)}")
+
+@app.post("/analyze-ai")
+def analyze_resume_ai(payload: ResumeInput):
+    """Enhanced analysis with AI insights"""
+    try:
+        # Extract skills using both traditional and AI methods
+        skills = extract_skills(payload.resume_text)
+        
+        # Get AI role suggestions
+        ai_suggestions = {}
+        if os.getenv("GOOGLE_API_KEY"):
+            try:
+                ai_suggestions = gemini_service.suggest_role_ai(skills, payload.resume_text)
+            except Exception as e:
+                print(f"AI role suggestion failed: {e}")
+        
+        # Use ML model for primary prediction
+        role, confidence_score = predict_role_with_confidence(skills)
+        match_score = float(confidence_score)
+        
+        # Generate AI feedback
+        ai_feedback = ""
+        if os.getenv("GOOGLE_API_KEY"):
+            try:
+                ai_feedback = gemini_service.generate_resume_feedback(payload.resume_text, role)
+            except Exception as e:
+                print(f"AI feedback generation failed: {e}")
+        
+        resume_id = str(uuid.uuid4())
+        
+        # Save to database
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    INSERT INTO resumes (id, user_email, raw_text, extracted_skills, predicted_role, match_score, created_at)
+                    VALUES (:id, :email, :raw, :skills, :role, :match_score, :created_at)
+                """), {
+                    "id": resume_id,
+                    "email": payload.user_email,
+                    "raw": payload.resume_text,
+                    "skills": skills,
+                    "role": role,
+                    "match_score": match_score,
+                    "created_at": datetime.utcnow()
+                })
+        except OperationalError as e:
+            raise HTTPException(status_code=500, detail="Database insert failed")
+        
+        return {
+            "id": resume_id,
+            "skills": skills,
+            "predicted_role": role,
+            "match_score": match_score,
+            "ai_suggestions": ai_suggestions,
+            "ai_feedback": ai_feedback,
+            "ai_enhanced": bool(os.getenv("GOOGLE_API_KEY"))
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
+
+@app.post("/enhance-skills")
+def enhance_skills_ai(payload: dict):
+    """Enhance existing skills with AI insights"""
+    try:
+        text = payload.get("text", "")
+        existing_skills = payload.get("skills", [])
+        
+        if not text:
+            raise HTTPException(status_code=400, detail="Text is required")
+        
+        if not os.getenv("GOOGLE_API_KEY"):
+            raise HTTPException(status_code=400, detail="Google API key not configured")
+        
+        additional_skills = gemini_service.enhance_skill_extraction(text, existing_skills)
+        
+        return {
+            "original_skills": existing_skills,
+            "additional_skills": additional_skills,
+            "enhanced_skills": list(set(existing_skills + additional_skills))
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Skill enhancement failed: {str(e)}")
+
+@app.post("/generate-feedback")
+def generate_resume_feedback_ai(payload: dict):
+    """Generate AI-powered resume feedback"""
+    try:
+        text = payload.get("text", "")
+        target_role = payload.get("target_role", "Software Developer")
+        
+        if not text:
+            raise HTTPException(status_code=400, detail="Text is required")
+        
+        if not os.getenv("GOOGLE_API_KEY"):
+            raise HTTPException(status_code=400, detail="Google API key not configured")
+        
+        feedback = gemini_service.generate_resume_feedback(text, target_role)
+        
+        return {
+            "feedback": feedback,
+            "target_role": target_role
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Feedback generation failed: {str(e)}")
